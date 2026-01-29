@@ -5,8 +5,10 @@ const nextConfig: NextConfig = {
     domains: ["nads.1cdn.vn"],
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "res.cloudinary.com",
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        port: '',
+        pathname: '/**',
       },
     ],
   },

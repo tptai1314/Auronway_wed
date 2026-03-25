@@ -1,27 +1,35 @@
 import React from "react"
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
-const inter = Inter({ subsets: ["latin", "vietnamese"] });
+const _geist = Geist({ subsets: ["latin"] });
+const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Event Admin - Quản lý sự kiện',
-  description: 'Hệ thống quản lý sự kiện, người tham gia và check-in QR',
-  generator: 'v0.app',
+  title: 'Auronway',
+  description: 'Nền tảng giúp sinh viên tích lũy kỹ năng mềm thông qua các hoạt động, sự kiện, workshop. Quản lý điểm rèn luyện và xuất CV chuyên nghiệp dễ dàng.',
+  generator: 'auronway',
+  openGraph: {
+    title: 'Auronway',
+    description: 'Nền tảng tích lũy kỹ năng cho sinh viên đại học',
+    type: 'website',
+  },
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
+        url: '/Auronway_logo-removebg-preview.png',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/icon-dark-32x32.png',
+        url: '/Auronway_logo-removebg-preview.png',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/icon.svg',
+        url: 'Auronway_logo-removebg-preview.png',
         type: 'image/svg+xml',
       },
     ],
@@ -35,9 +43,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${inter.className} antialiased`}>
-        {children}
+    <html lang="vi" suppressHydrationWarning>
+      <body className={`font-sans antialiased`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

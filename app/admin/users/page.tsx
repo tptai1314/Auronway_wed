@@ -33,6 +33,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { getUsers, createUser, updateUser, toggleUserStatus, type User } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { isTenantAdmin } from "@/lib/admin-access"
+
+type LocalUser = {
+  roles?: string[]
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -41,6 +46,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [roleFilter, setRoleFilter] = useState("all")
   const [total, setTotal] = useState(0)
+  const [currentUser, setCurrentUser] = useState<LocalUser | null>(null)
+  const [authorized, setAuthorized] = useState(false)
 
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -58,6 +65,16 @@ export default function UsersPage() {
   })
 
   const { toast } = useToast()
+
+  // Load current user info
+  useEffect(() => {
+    const userStr = localStorage.getItem("user")
+    if (userStr) {
+      const user = JSON.parse(userStr) as LocalUser
+      setCurrentUser(user)
+      setAuthorized(isTenantAdmin(user))
+    }
+  }, [])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -85,8 +102,21 @@ export default function UsersPage() {
   }, [searchQuery, statusFilter, roleFilter, toast])
 
   useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+    if (authorized) {
+      fetchUsers()
+    } else if (currentUser) {
+      setLoading(false)
+    }
+  }, [fetchUsers, authorized, currentUser])
+
+  if (currentUser && !authorized) {
+    return (
+      <div className="flex flex-col">
+        <AdminHeader title="Quản lý Người dùng" description="Bạn không có quyền truy cập" />
+        <div className="p-6 text-muted-foreground">Chức năng này chỉ dành cho Tenant Admin.</div>
+      </div>
+    )
+  }
 
   const resetForm = () => {
     setFormData({
@@ -125,7 +155,7 @@ export default function UsersPage() {
           description: result.error || "Không thể tạo người dùng",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Lỗi",
@@ -142,7 +172,14 @@ export default function UsersPage() {
 
     setIsSubmitting(true)
     try {
-      const updateData: any = {
+      const updateData: {
+        email: string
+        profile: {
+          full_name: string
+        }
+        roles: string[]
+        password?: string
+      } = {
         email: formData.email,
         profile: {
           full_name: formData.full_name,
@@ -172,7 +209,7 @@ export default function UsersPage() {
           description: result.error || "Không thể cập nhật người dùng",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Lỗi",
@@ -204,7 +241,7 @@ export default function UsersPage() {
           description: result.error || "Không thể thay đổi trạng thái",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Lỗi",
@@ -231,9 +268,7 @@ export default function UsersPage() {
     total,
     active: users.filter((u) => u.is_active).length,
     admins: users.filter((u) => u.roles?.includes("SUPER_ADMIN") || u.roles?.includes("TENANT_ADMIN")).length,
-    organizers: users.filter((u) =>
-      u.affiliations?.some((a) => a.role === "EVENT_MANAGER")
-    ).length,
+    organizers: 0,
   }
 
   return (

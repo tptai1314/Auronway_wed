@@ -30,9 +30,10 @@ interface EventFormProps {
   onSubmit: (data: Partial<Event>) => Promise<void>
   onCancel: () => void
   isLoading?: boolean
+  canEditStatus?: boolean
 }
 
-export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormProps) {
+export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus = false }: EventFormProps) {
   const [formData, setFormData] = useState({
     title: event?.title || "",
     description: event?.description || "",
@@ -106,9 +107,57 @@ export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormPro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validate required fields
+    if (!formData.title.trim()) {
+      alert("Vui lòng nhập tên sự kiện")
+      return
+    }
+    
+    if (!formData.start_at || !formData.end_at) {
+      alert("Vui lòng chọn thời gian bắt đầu và kết thúc")
+      return
+    }
+    
+    // Validate dates
+    const startDate = new Date(formData.start_at)
+    const endDate = new Date(formData.end_at)
+    const now = new Date()
+    
+    if (startDate >= endDate) {
+      alert("Thời gian bắt đầu phải trước thời gian kết thúc")
+      return
+    }
+    
+    if (startDate < now && !event) {
+      alert("Thời gian bắt đầu không được trong quá khứ")
+      return
+    }
+    
+    // Validate registration dates if provided
+    if (formData.registration_open_at && formData.registration_close_at) {
+      const regOpen = new Date(formData.registration_open_at)
+      const regClose = new Date(formData.registration_close_at)
+      
+      if (regOpen >= regClose) {
+        alert("Thời gian mở đăng ký phải trước thời gian đóng đăng ký")
+        return
+      }
+      
+      if (regClose > startDate) {
+        alert("Thời gian đóng đăng ký phải trước khi sự kiện bắt đầu")
+        return
+      }
+    }
+    
     // Validate meeting_url based on mode
     if ((formData.mode === "ONLINE" || formData.mode === "HYBRID") && !formData.meeting_url) {
       alert("Link họp trực tuyến là bắt buộc cho sự kiện trực tuyến hoặc kết hợp")
+      return
+    }
+    
+    // Validate location for offline/hybrid events
+    if ((formData.mode === "OFFLINE" || formData.mode === "HYBRID") && !formData.location) {
+      alert("Địa điểm là bắt buộc cho sự kiện trực tiếp hoặc kết hợp")
       return
     }
     
@@ -258,6 +307,7 @@ export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormPro
                 onValueChange={(value: EventStatus) =>
                   setFormData({ ...formData, status: value })
                 }
+                disabled={!canEditStatus}
               >
                 <SelectTrigger className="bg-secondary">
                   <SelectValue />
@@ -268,6 +318,11 @@ export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormPro
                   <SelectItem value="CANCELLED">Đã hủy</SelectItem>
                 </SelectContent>
               </Select>
+              {!canEditStatus && (
+                <p className="text-xs text-muted-foreground">
+                  Chỉ Tenant Admin mới có quyền chỉnh sửa trạng thái sự kiện.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -424,6 +479,7 @@ export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormPro
                       src={imagePreview}
                       alt="Preview"
                       fill
+                      sizes="(max-width: 768px) 100vw, 800px"
                       className="object-cover"
                     />
                     {isUploading && (

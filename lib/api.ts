@@ -98,6 +98,7 @@ export async function getEvents(params?: {
   status?: string;
   type?: string;
   q?: string;
+  organizer_id?: string;
 }) {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', params.page.toString());
@@ -105,8 +106,10 @@ export async function getEvents(params?: {
   if (params?.status && params.status !== 'all') searchParams.set('status', params.status);
   if (params?.type && params.type !== 'all') searchParams.set('type', params.type);
   if (params?.q) searchParams.set('q', params.q);
+  if (params?.organizer_id) searchParams.set('organizer_id', params.organizer_id);
 
   const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  console.log('getEvents API call with query:', query)
   return fetchAPI<EventsResponse>(`/events${query}`);
 }
 
@@ -199,6 +202,8 @@ export async function getUsers(params?: {
   role?: string;
   status?: string;
   q?: string;
+  organizer_id?: string;
+  campus_id?: string;
 }) {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', params.page.toString());
@@ -206,6 +211,8 @@ export async function getUsers(params?: {
   if (params?.role && params.role !== 'all') searchParams.set('role', params.role);
   if (params?.status && params.status !== 'all') searchParams.set('status', params.status);
   if (params?.q) searchParams.set('q', params.q);
+  if (params?.organizer_id) searchParams.set('organizer_id', params.organizer_id);
+  if (params?.campus_id) searchParams.set('campus_id', params.campus_id);
 
   const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
   return fetchAPI<UsersResponse>(`/admin/users${query}`);
@@ -245,6 +252,14 @@ export async function deleteUser(id: string) {
   return fetchAPI<User>(`/admin/users/${id}`, {
     method: 'DELETE',
   });
+}
+
+// Search users (for adding members to clubs)
+export async function searchUsers(query: string) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('q', query);
+  searchParams.set('limit', '20');
+  return fetchAPI<UsersResponse>(`/admin/users?${searchParams.toString()}`);
 }
 
 // =====================================
@@ -292,6 +307,84 @@ export async function logout() {
 
 export async function getMe() {
   return fetchAPI<User>('/auth/me');
+}
+
+// =====================================
+// USER PROFILE APIs
+// =====================================
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  profile: {
+    full_name?: string;
+    avatar_url?: string;
+    student_id?: string;
+    major?: string;
+    bio?: string;
+    date_of_birth?: string;
+    phone?: string;
+    links?: {
+      github?: string;
+      linkedin?: string;
+      portfolio?: string;
+    };
+  };
+  stats: {
+    total_xp: number;
+    level: number;
+    streak: number;
+    completed_events: number;
+    certificates_count: number;
+  };
+}
+
+export async function getMyProfile() {
+  return fetchAPI<UserProfile>('/users/me/profile');
+}
+
+export async function updateMyProfile(data: Partial<UserProfile['profile']>) {
+  return fetchAPI<UserProfile>('/users/me/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function uploadUserAvatar(file: File) {
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result.message || 'Upload thất bại',
+      };
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Upload Error:', error);
+    return {
+      success: false,
+      error: 'Không thể upload avatar',
+    };
+  }
 }
 
 // =====================================
@@ -369,4 +462,183 @@ export interface Skill {
 
 export async function getAllSkills() {
   return fetchAPI<Skill[]>('/admin/skills');
+}
+
+// =====================================
+// ORGANIZERS/CLUBS APIs
+// =====================================
+
+export interface Organizer {
+  _id: string;
+  tenant_id: string;
+  campus_id?: string;
+  name: string;
+  description?: string;
+  type: 'CLUB' | 'DEPARTMENT' | 'EXTERNAL';
+  email?: string;
+  logo_url?: string;
+  is_private?: boolean;
+  is_active: boolean;
+  contact?: {
+    email?: string;
+    phone?: string;
+    website?: string;
+  };
+  social_links?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  };
+  reviewers?: string[];
+  approvers?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizerMember {
+  user_id: {
+    _id: string;
+    email: string;
+    profile?: {
+      full_name?: string;
+      avatar_url?: string;
+      student_id?: string;
+    };
+  };
+  role: 'CLUB_ADMIN' | 'EVENT_MANAGER' | 'REVIEWER' | 'APPROVER';
+  joined_at: string;
+}
+
+export async function getOrganizers(tenantId?: string) {
+  const params = new URLSearchParams()
+  if (tenantId) params.append('tenantId', tenantId)
+  
+  return fetchAPI<Organizer[]>(`/organizers?${params.toString()}`);
+}
+
+export async function getOrganizerById(id: string) {
+  console.log('Calling API: GET /organizers/' + id)
+  return fetchAPI<Organizer>(`/organizers/${id}`);
+}
+
+export async function createOrganizer(data: {
+  name: string;
+  type: 'CLUB' | 'DEPARTMENT' | 'OFFICE' | 'COMMITTEE';
+  description?: string;
+  contact_email?: string;
+  logo_url?: string;
+  campus_id: string;
+  tenant_id: string;
+}) {
+  return fetchAPI<Organizer>(`/organizers`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateOrganizer(id: string, data: Partial<{
+  name: string;
+  description?: string;
+  contact_email?: string;
+  logo_url?: string;
+}>) {
+  return fetchAPI<Organizer>(`/organizers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteOrganizer(id: string) {
+  return fetchAPI(`/organizers/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getOrganizerMembers(organizerId: string) {
+  return fetchAPI<{ organizer: Organizer; members: OrganizerMember[] }>(
+    `/organizers/${organizerId}/members`
+  );
+}
+
+export async function addOrganizerMember(organizerId: string, userId: string, role: string) {
+  return fetchAPI(`/organizers/${organizerId}/members/add`, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, role }),
+  });
+}
+
+export async function removeOrganizerMember(organizerId: string, userId: string) {
+  return fetchAPI(`/organizers/${organizerId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateOrganizerPrivacy(organizerId: string, isPrivate: boolean) {
+  return fetchAPI(`/organizers/${organizerId}/privacy`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_private: isPrivate }),
+  });
+}
+
+// =====================================
+// QR CODE CHECK-IN APIs
+// =====================================
+
+export interface QRCodeData {
+  event_id: string;
+  qr_code_token: string;
+  expires_at: string;
+  max_scans: number | null;
+  scan_count: number;
+}
+
+// Generate QR code for an event
+export async function generateEventQRCode(eventId: string, options?: {
+  expires_in_hours?: number;
+  max_scans?: number;
+}) {
+  return fetchAPI<QRCodeData>(`/events/${eventId}/qr-code`, {
+    method: 'POST',
+    body: JSON.stringify(options || {}),
+  });
+}
+
+// Get QR code info for an event
+export async function getEventQRCode(eventId: string) {
+  return fetchAPI<QRCodeData>(`/events/${eventId}/qr-code`);
+}
+
+// Deactivate QR code for an event
+export async function deactivateEventQRCode(eventId: string) {
+  return fetchAPI(`/events/${eventId}/qr-code`, {
+    method: 'DELETE',
+  });
+}
+
+// Delete QR code for an event (hard delete)
+export async function deleteEventQRCode(eventId: string) {
+  return fetchAPI(`/events/${eventId}/qr-code/delete`, {
+    method: 'DELETE',
+  });
+}
+
+// Check-in by QR code (for mobile)
+export async function checkinByQRCode(qrToken: string, location?: { lat: number; lng: number }, deviceInfo?: Record<string, unknown>) {
+  return fetchAPI('/events/qr-checkin', {
+    method: 'POST',
+    body: JSON.stringify({
+      qr_token: qrToken,
+      location,
+      device_info: deviceInfo,
+    }),
+  });
+}
+
+// Get today's events that can have check-in sessions
+export async function getTodayEvents() {
+  const today = new Date()
+  const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+  const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+  
+  return fetchAPI<EventsResponse>(`/events?start_date=${startOfDay}&end_date=${endOfDay}&status=APPROVED`);
 }

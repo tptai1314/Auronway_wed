@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -10,38 +10,59 @@ import {
   QrCode,
   UserCog,
   Settings,
-  LogOut,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  CheckCircle,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { isTenantAdmin, isTenantClub } from "@/lib/admin-access"
+
+type AdminRole = "TENANT_ADMIN" | "TENANT_CLUB"
 
 const navigation = [
   {
     name: "Dashboard",
     href: "/admin",
     icon: LayoutDashboard,
+    roles: ["TENANT_ADMIN", "TENANT_CLUB"] as AdminRole[],
   },
   {
     name: "Sự kiện",
     href: "/admin/events",
     icon: Calendar,
+    roles: ["TENANT_ADMIN", "TENANT_CLUB"] as AdminRole[],
+  },
+  {
+    name: "Duyệt sự kiện",
+    href: "/admin/events/approve",
+    icon: CheckCircle,
+    roles: ["TENANT_ADMIN"] as AdminRole[],
+  },
+  {
+    name: "Câu lạc bộ",
+    href: "/admin/clubs",
+    icon: Building2,
+    roles: ["TENANT_ADMIN"] as AdminRole[],
   },
   {
     name: "Người tham gia",
     href: "/admin/participants",
     icon: Users,
+    roles: ["TENANT_ADMIN", "TENANT_CLUB"] as AdminRole[],
   },
   {
     name: "QR Check-in",
     href: "/admin/checkin",
     icon: QrCode,
+    roles: ["TENANT_ADMIN", "TENANT_CLUB"] as AdminRole[],
   },
   {
     name: "Người dùng",
     href: "/admin/users",
     icon: UserCog,
+    roles: ["TENANT_ADMIN"] as AdminRole[],
   },
 ]
 
@@ -55,13 +76,25 @@ const bottomNavigation = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [user, setUser] = useState<any>(null)
 
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    router.push("/login")
+  useEffect(() => {
+    const userStr = localStorage.getItem("user")
+    if (userStr) {
+      setUser(JSON.parse(userStr))
+    }
+  }, [])
+
+  // Check if user has required role for menu item
+  const hasRole = (requiredRoles: AdminRole[]) => {
+    if (!requiredRoles || requiredRoles.length === 0) return true
+    if (!user) return false
+
+    if (requiredRoles.includes("TENANT_ADMIN") && isTenantAdmin(user)) return true
+    if (requiredRoles.includes("TENANT_CLUB") && isTenantClub(user)) return true
+
+    return false
   }
 
   return (
@@ -100,6 +133,8 @@ export function AdminSidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-2">
         {navigation.map((item) => {
+          if (!hasRole(item.roles)) return null
+          
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
           return (
             <Link
@@ -143,17 +178,6 @@ export function AdminSidebar() {
             </Link>
           )
         })}
-        <button
-          onClick={handleLogout}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive",
-            collapsed && "justify-center px-2"
-          )}
-          title={collapsed ? "Đăng xuất" : undefined}
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>Đăng xuất</span>}
-        </button>
       </div>
     </aside>
   )

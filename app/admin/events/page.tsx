@@ -19,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { getPrimaryTenantClubOrganizerId, isTenantClub } from "@/lib/admin-access"
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
@@ -29,17 +30,57 @@ export default function EventsPage() {
   const [total, setTotal] = useState(0)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [currentUser, setCurrentUser] = useState<Record<string, unknown> | null>(null)
+  const [userLoaded, setUserLoaded] = useState(false)
   const { toast } = useToast()
 
+  // Load current user info
+  useEffect(() => {
+    const userStr = localStorage.getItem("user")
+    if (userStr) {
+      setCurrentUser(JSON.parse(userStr))
+    }
+    setUserLoaded(true)
+  }, [])
+
+  const myClubId = isTenantClub(currentUser)
+    ? getPrimaryTenantClubOrganizerId(currentUser)
+    : null
+
+  useEffect(() => {
+    console.log('Current user:', currentUser)
+    console.log('My club ID:', myClubId)
+  }, [currentUser, myClubId])
+
   const fetchEvents = useCallback(async () => {
+    // Đợi user load xong trước khi fetch
+    if (!userLoaded) {
+      return
+    }
+    
     setLoading(true)
     try {
-      const result = await getEvents({
+      const params: {
+        status: string
+        type: string
+        q: string
+        limit: number
+        organizer_id?: string
+      } = {
         status: statusFilter,
         type: typeFilter,
         q: searchQuery,
         limit: 50,
-      })
+      }
+      
+      // Nếu là club manager, thêm organizer_id filter
+      if (myClubId) {
+        params.organizer_id = myClubId
+        console.log('Adding organizer_id filter:', myClubId)
+      }
+      
+      console.log('Fetching events with params:', params)
+      const result = await getEvents(params)
 
       console.log("Fetched events:", result)
       if (result.success && result.data) {
@@ -56,7 +97,7 @@ export default function EventsPage() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, typeFilter, searchQuery, toast])
+  }, [statusFilter, typeFilter, searchQuery, toast, myClubId, userLoaded])
 
   useEffect(() => {
     fetchEvents()
@@ -96,8 +137,8 @@ export default function EventsPage() {
   return (
     <div className="flex flex-col">
       <AdminHeader
-        title="Quản lý Sự kiện"
-        description={`Tổng cộng ${total} sự kiện`}
+        title={myClubId ? "Sự kiện câu lạc bộ" : "Quản lý Sự kiện"}
+        description={myClubId ? `${total} sự kiện của câu lạc bộ` : `Tổng cộng ${total} sự kiện`}
       />
 
       <div className="p-6">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
+import { canAccessWebAdmin } from "@/lib/admin-access"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -26,9 +27,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
       try {
         const user = JSON.parse(userStr)
-        
-        // Kiểm tra role admin
-        if (!user.roles?.includes("SUPER_ADMIN") && !user.roles?.includes("TENANT_ADMIN")) {
+
+        if (!canAccessWebAdmin(user)) {
           localStorage.removeItem("token")
           localStorage.removeItem("user")
           router.push("/login")

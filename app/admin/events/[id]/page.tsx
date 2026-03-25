@@ -24,10 +24,14 @@ import {
   Link as LinkIcon,
   Loader2,
   ArrowLeft,
+  CheckCircle,
+  XCircle,
+  Ban,
 } from "lucide-react"
 import Link from "next/link"
-import { getEvent, getRegistrations, deleteEvent, type Event, type Registration } from "@/lib/api"
+import { getEvent, getRegistrations, deleteEvent, updateEvent, type Event, type Registration } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { canManageEvent, isTenantAdmin } from "@/lib/admin-access"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,10 +99,28 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showApproveDialog, setShowApproveDialog] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [showRejectDialog, setShowRejectDialog] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [currentUser, setCurrentUser] = useState<Record<string, unknown> | null>(null)
+  const [userLoaded, setUserLoaded] = useState(false)
 
   const eventId = params.id as string
 
+  useEffect(() => {
+    const userStr = localStorage.getItem("user")
+    if (userStr) {
+      setCurrentUser(JSON.parse(userStr))
+    }
+    setUserLoaded(true)
+  }, [])
+
   const fetchData = useCallback(async () => {
+    if (!userLoaded) return
+
     try {
       const [eventResult, regResult] = await Promise.all([
         getEvent(eventId),
@@ -106,6 +128,16 @@ export default function EventDetailPage() {
       ])
 
       if (eventResult.success && eventResult.data) {
+        if (!canManageEvent(currentUser, eventResult.data)) {
+          toast({
+            variant: "destructive",
+            title: "Không có quyền",
+            description: "Bạn chỉ có thể xem sự kiện thuộc câu lạc bộ của mình",
+          })
+          router.push("/admin/events")
+          return
+        }
+
         setEvent(eventResult.data)
       } else {
         toast({
@@ -129,7 +161,9 @@ export default function EventDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [eventId, router, toast])
+  }, [eventId, router, toast, currentUser, userLoaded])
+
+  const canApprove = isTenantAdmin(currentUser)
 
   useEffect(() => {
     fetchData()
@@ -164,6 +198,93 @@ export default function EventDetailPage() {
     }
   }
 
+  const handleApprove = async () => {
+    setApproving(true)
+    try {
+      const result = await updateEvent(eventId, { status: "APPROVED" })
+      if (result.success) {
+        toast({
+          title: "Thành công",
+          description: "Đã duyệt sự kiện",
+        })
+        fetchData() // Reload data
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể duyệt sự kiện",
+        })
+      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể duyệt sự kiện",
+      })
+    } finally {
+      setApproving(false)
+      setShowApproveDialog(false)
+    }
+  }
+
+  const handleReject = async () => {
+    setRejecting(true)
+    try {
+      const result = await updateEvent(eventId, { status: "CANCELLED" })
+      if (result.success) {
+        toast({
+          title: "Thành công",
+          description: "Đã từ chối sự kiện",
+        })
+        fetchData() // Reload data
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể từ chối sự kiện",
+        })
+      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể từ chối sự kiện",
+      })
+    } finally {
+      setRejecting(false)
+      setShowRejectDialog(false)
+    }
+  }
+
+  const handleCancel = async () => {
+    setCancelling(true)
+    try {
+      const result = await updateEvent(eventId, { status: "CANCELLED" })
+      if (result.success) {
+        toast({
+          title: "Thành công",
+          description: "Đã hủy sự kiện",
+        })
+        fetchData() // Reload data
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể hủy sự kiện",
+        })
+      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể hủy sự kiện",
+      })
+    } finally {
+      setCancelling(false)
+      setShowCancelDialog(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -175,6 +296,11 @@ export default function EventDetailPage() {
   if (!event) {
     return null
   }
+
+  const organizerDisplayName =
+    typeof event.organizer_id === "string"
+      ? event.organizer_id
+      : "Không xác định"
 
   return (
     <div className="flex flex-col">
@@ -193,12 +319,62 @@ export default function EventDetailPage() {
             </Link>
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" asChild>
-              <Link href={`/admin/events/${eventId}/edit`}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Chỉnh sửa
-              </Link>
-            </Button>
+            {/* Show Approve/Reject buttons for DRAFT events */}
+            {event.status === "DRAFT" && canApprove && (
+              <>
+                <Button
+                  onClick={() => setShowApproveDialog(true)}
+                  disabled={approving}
+                >
+                  {approving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Duyệt
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowRejectDialog(true)}
+                  disabled={rejecting}
+                >
+                  {rejecting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Từ chối
+                </Button>
+              </>
+            )}
+
+            {/* Show Cancel button for APPROVED events */}
+            {event.status === "APPROVED" && (
+              <Button
+                variant="destructive"
+                onClick={() => setShowCancelDialog(true)}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Ban className="mr-2 h-4 w-4" />
+                )}
+                Hủy sự kiện
+              </Button>
+            )}
+
+            {/* Edit button - hide for cancelled events */}
+            {event.status !== "CANCELLED" && (
+              <Button variant="outline" asChild>
+                <Link href={`/admin/events/${eventId}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Chỉnh sửa
+                </Link>
+              </Button>
+            )}
+
+            {/* Delete button */}
             <Button
               variant="destructive"
               onClick={() => setShowDeleteDialog(true)}
@@ -213,11 +389,11 @@ export default function EventDetailPage() {
           {/* Event Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* Cover Image */}
-            {event.cover_image_url && (
-              <div className="aspect-video overflow-hidden rounded-lg">
+            {event._id && (
+              <div className="aspect-video overflow-hidden rounded-lg bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={event.cover_image_url}
+                  src={event.cover_image_url || "https://placehold.co/1280x720/e5e7eb/6b7280?text=Event+Cover"}
                   alt={event.title || "Event cover"}
                   className="h-full w-full object-cover"
                 />
@@ -237,6 +413,13 @@ export default function EventDetailPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {event.organizer_id && (
+                  <div className="rounded-lg bg-muted/50 p-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Tổ chức bởi</p>
+                    <p className="font-semibold">{organizerDisplayName}</p>
+                  </div>
+                )}
+                
                 {event.description && (
                   <p className="text-muted-foreground">{event.description}</p>
                 )}
@@ -441,6 +624,77 @@ export default function EventDetailPage() {
             >
               {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Approve Confirmation Dialog */}
+      <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận duyệt sự kiện</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn duyệt sự kiện &quot;{event.title}&quot;? 
+              Sự kiện sẽ được công khai và người dùng có thể đăng ký tham gia.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={approving}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleApprove}
+              disabled={approving}
+            >
+              {approving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Duyệt
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Confirmation Dialog */}
+      <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận từ chối sự kiện</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn từ chối sự kiện &quot;{event.title}&quot;? 
+              Sự kiện sẽ bị đánh dấu là đã hủy và không thể công khai.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rejecting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReject}
+              disabled={rejecting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {rejecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Từ chối
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Event Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận hủy sự kiện</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn hủy sự kiện &quot;{event.title}&quot;? 
+              Người dùng đã đăng ký sẽ được thông báo về việc hủy sự kiện.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Không</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Hủy sự kiện
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

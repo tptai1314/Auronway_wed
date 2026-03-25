@@ -7,6 +7,7 @@ import { EventForm } from "@/components/admin/event-form"
 import { getEvent, updateEvent, type Event, type EventData } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
+import { canManageEvent, isTenantAdmin } from "@/lib/admin-access"
 
 export default function EditEventPage() {
   const router = useRouter()
@@ -15,18 +16,33 @@ export default function EditEventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [canEditStatus, setCanEditStatus] = useState(false)
 
   const eventId = params.id as string
 
   useEffect(() => {
     async function fetchEvent() {
       try {
+        const userStr = localStorage.getItem("user")
+        const currentUser = userStr ? JSON.parse(userStr) : null
+        setCanEditStatus(isTenantAdmin(currentUser))
+
         const result = await getEvent(eventId)
         if (result.success && result.data) {
+          if (!canManageEvent(currentUser, result.data)) {
+            toast({
+              variant: "destructive",
+              title: "Không có quyền",
+              description: "Bạn chỉ có thể chỉnh sửa sự kiện thuộc câu lạc bộ của mình",
+            })
+            router.push("/admin/events")
+            return
+          }
+
           // Normalize populated fields back to IDs
           const normalizedEvent = {
             ...result.data,
-            skills: result.data.skills?.map((skill: any) => ({
+            skills: result.data.skills?.map((skill: { skill_id: string | { _id: string }; xp_reward: number }) => ({
               skill_id: typeof skill.skill_id === 'object' ? skill.skill_id._id : skill.skill_id,
               xp_reward: skill.xp_reward
             })) || []
@@ -68,6 +84,10 @@ export default function EditEventPage() {
         registration_close_at: data.registration_close_at
           ? new Date(data.registration_close_at).toISOString()
           : undefined,
+      }
+
+      if (!canEditStatus) {
+        delete eventData.status
       }
 
       const result = await updateEvent(eventId, eventData)
@@ -125,6 +145,7 @@ export default function EditEventPage() {
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           isLoading={isSaving}
+          canEditStatus={canEditStatus}
         />
       </div>
     </div>

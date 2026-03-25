@@ -79,12 +79,19 @@ const getModeBadge = (mode: string) => {
 }
 
 export function EventTable({ events, onDelete }: EventTableProps) {
+  const getOrganizerName = (organizer: any) => {
+    if (!organizer) return "Chưa xác định"
+    if (typeof organizer === 'string') return "Đang tải..."
+    return organizer.name || "Chưa xác định"
+  }
+
   return (
     <div className="rounded-lg border border-border">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[300px]">Sự kiện</TableHead>
+            <TableHead>Tổ chức</TableHead>
             <TableHead>Loại</TableHead>
             <TableHead>Hình thức</TableHead>
             <TableHead>Thời gian</TableHead>
@@ -98,16 +105,34 @@ export function EventTable({ events, onDelete }: EventTableProps) {
           {events.map((event) => (
             <TableRow key={event._id} className="hover:bg-secondary/50">
               <TableCell>
-                <div className="flex flex-col">
-                  <span className="font-medium text-foreground">
-                    {event.title}
-                  </span>
-                  {event.location && (
-                    <span className="text-sm text-muted-foreground">
-                      {event.location}
-                    </span>
+                <div className="flex items-center gap-3">
+                  {event.cover_image_url ? (
+                    <img 
+                      src={event.cover_image_url} 
+                      alt={event.title}
+                      className="h-12 w-12 rounded object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded bg-primary/10">
+                      <QrCode className="h-6 w-6 text-primary" />
+                    </div>
                   )}
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground">
+                      {event.title}
+                    </span>
+                    {event.location && (
+                      <span className="text-sm text-muted-foreground">
+                        {event.location}
+                      </span>
+                    )}
+                  </div>
                 </div>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-muted-foreground">
+                  {getOrganizerName(event.organizer_id)}
+                </span>
               </TableCell>
               <TableCell>{getTypeBadge(event.type)}</TableCell>
               <TableCell>{getModeBadge(event.mode)}</TableCell>

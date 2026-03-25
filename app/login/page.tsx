@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, LogIn } from "lucide-react"
 import { login } from "@/lib/api"
+import { canAccessWebAdmin } from "@/lib/admin-access"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -30,12 +31,12 @@ export default function LoginPage() {
         localStorage.setItem("token", result.data.token)
         localStorage.setItem("user", JSON.stringify(result.data.user))
 
-        // Kiểm tra role để redirect
         const user = result.data.user
-        if (user.roles?.includes("SUPER_ADMIN") || user.roles?.includes("TENANT_ADMIN")) {
+
+        if (canAccessWebAdmin(user)) {
           router.push("/admin")
         } else {
-          setError("Bạn không có quyền truy cập trang admin")
+          setError("Chỉ Tenant Admin hoặc Tenant Club mới có quyền vào trang admin")
         }
       } else {
         setError(result.error || "Đăng nhập thất bại")

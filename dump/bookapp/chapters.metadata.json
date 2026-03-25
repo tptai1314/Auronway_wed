@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"novel":{"$numberInt":"1"},"number":{"$numberInt":"1"}},"name":"novel_1_number_1","background":true,"unique":true}],"uuid":"411038810c684f87857fd7168b5a7d2d","collectionName":"chapters","type":"collection"}

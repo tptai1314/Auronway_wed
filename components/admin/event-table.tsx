@@ -32,7 +32,7 @@ interface EventTableProps {
   onDelete?: (id: string) => void
 }
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status?: string) => {
   switch (status) {
     case "APPROVED":
       return (
@@ -45,7 +45,7 @@ const getStatusBadge = (status: string) => {
     case "CANCELLED":
       return <Badge variant="destructive">Đã hủy</Badge>
     default:
-      return <Badge variant="secondary">{status}</Badge>
+      return <Badge variant="secondary">{status || "Chưa xác định"}</Badge>
   }
 }
 

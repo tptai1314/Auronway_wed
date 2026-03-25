@@ -16,7 +16,7 @@ export default function NewClubPage() {
   const handleSubmit = async (data: any) => {
     setIsLoading(true)
     try {
-      const clubData = {
+      const clubData: Parameters<typeof createOrganizer>[0] = {
         name: data.name,
         description: data.description,
         contact_email: data.contact?.email, // Map to backend field

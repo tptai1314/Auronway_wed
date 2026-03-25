@@ -21,7 +21,7 @@ export default function NewClubPage() {
         description: data.description,
         contact_email: data.contact?.email, // Map to backend field
         logo_url: data.logo, // Map to backend field
-        type: "CLUB", // Required by backend
+        type: "CLUB" as const, // Required by backend - use as const for literal type
         tenant_id: DEFAULT_TENANT_ID,
         campus_id: DEFAULT_CAMPUS_ID,
       }

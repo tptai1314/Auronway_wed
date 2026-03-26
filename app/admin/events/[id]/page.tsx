@@ -297,10 +297,16 @@ export default function EventDetailPage() {
     return null
   }
 
+  const organizerRaw = event.organizer_id as unknown
+  const organizerInfo =
+    organizerRaw && typeof organizerRaw === "object"
+      ? (organizerRaw as { name?: string; _id?: string })
+      : null
+
   const organizerDisplayName =
-    typeof event.organizer_id === "string"
-      ? event.organizer_id
-      : "Không xác định"
+    typeof organizerRaw === "string"
+      ? organizerRaw
+      : organizerInfo?.name || organizerInfo?._id || "Không xác định"
 
   return (
     <div className="flex flex-col">

@@ -36,11 +36,12 @@ export default function ClubsPage() {
     try {
       console.log('Loading clubs...')
       const result = await getOrganizers()
-      console.log('Clubs result:', result.organizers)
+      const organizers = (result.data ?? (result as any).organizers) as Organizer[] | undefined
+      console.log('Clubs result:', organizers)
 
-      if (result.success && result.organizers) {
+      if (result.success && organizers) {
         // Filter only CLUB type
-        const clubList = result.organizers.filter(org => org.type === 'CLUB')
+        const clubList = organizers.filter(org => org.type === 'CLUB')
         console.log('Filtered clubs:', clubList)
         setClubs(clubList)
       } else {

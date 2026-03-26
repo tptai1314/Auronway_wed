@@ -24,7 +24,7 @@ export function ClubForm({ club, onSubmit, onCancel, isLoading }: ClubFormProps)
     description: club?.description || "",
     logo: club?.logo_url || "", // Map from backend
     contact: {
-      email: club?.contact_email || "", // Map from backend
+      email: club?.contact?.email || club?.email || "", // Map from backend
       phone: "",
       website: "",
       address: "",

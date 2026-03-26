@@ -652,8 +652,11 @@ export interface QRCodeData {
   event_id: string;
   qr_code_token: string;
   expires_at: string;
+  is_active?: boolean;
+  is_valid?: boolean;
   max_scans: number | null;
   scan_count: number;
+  check_ins_count?: number;
 }
 
 // Generate QR code for an event

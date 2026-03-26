@@ -32,6 +32,7 @@ import { Suspense } from "react"
 import { 
   getEvents, 
   generateEventQRCode, 
+  getEventQRCode,
   deactivateEventQRCode,
   deleteEventQRCode,
   getEventRegistrations,
@@ -51,7 +52,7 @@ interface UserInfo {
 interface RegistrationItem {
   _id: string;
   status: string;
-  checked_in_at?: string;
+  attended_at?: string;
   user_id?: {
     _id: string;
     email: string;
@@ -161,6 +162,29 @@ function CheckInPageContent() {
         })
         
         setEvents(filteredEvents)
+
+        // Hydrate existing QR sessions from backend (fix mất phiên sau reload)
+        const qrResults = await Promise.all(
+          filteredEvents.map(async (event) => {
+            const qrRes = await getEventQRCode(event._id)
+            if (!qrRes.success || !qrRes.data) return null
+
+            return {
+              event_id: event._id,
+              event_title: event.title,
+              qr_code_token: qrRes.data.qr_code_token,
+              expires_at: qrRes.data.expires_at,
+              is_active: qrRes.data.is_active,
+              scan_count: qrRes.data.scan_count,
+            } as CheckInSession
+          })
+        )
+
+        const loadedSessions = qrResults.filter(Boolean) as CheckInSession[]
+        setSessions(loadedSessions)
+
+        const active = loadedSessions.find((s) => s.is_active && !isSessionExpired(s)) || null
+        setActiveSession(active)
         
         // If event ID from URL, set it as selected
         if (eventIdFromUrl) {
@@ -177,7 +201,7 @@ function CheckInPageContent() {
     } finally {
       setLoadingEvents(false)
     }
-  }, [myOrganizerId, eventIdFromUrl, toast])
+  }, [myOrganizerId, eventIdFromUrl, toast, isSessionExpired])
 
   useEffect(() => {
     if (currentUser) {
@@ -368,15 +392,15 @@ function CheckInPageContent() {
     if (!activeSession || !registrations.length) return { total: 0, checkedIn: 0 }
     return {
       total: registrations.length,
-      checkedIn: registrations.filter(r => r.status === 'CHECKED_IN').length,
+      checkedIn: registrations.filter(r => r.status === 'ATTENDED').length,
     }
   }, [activeSession, registrations])
 
   // Recent check-ins
   const recentCheckIns = useMemo(() => {
     return registrations
-      .filter(r => r.status === 'CHECKED_IN')
-      .sort((a, b) => new Date(b.checked_in_at || 0).getTime() - new Date(a.checked_in_at || 0).getTime())
+      .filter(r => r.status === 'ATTENDED')
+      .sort((a, b) => new Date(b.attended_at || 0).getTime() - new Date(a.attended_at || 0).getTime())
       .slice(0, 5)
   }, [registrations])
 
@@ -691,9 +715,9 @@ function CheckInPageContent() {
                                     {userName}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {registration.checked_in_at &&
+                                    {registration.attended_at &&
                                       new Date(
-                                        registration.checked_in_at
+                                        registration.attended_at
                                       ).toLocaleTimeString("vi-VN", {
                                         hour: "2-digit",
                                         minute: "2-digit",

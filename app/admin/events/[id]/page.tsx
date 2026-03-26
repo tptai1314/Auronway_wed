@@ -77,15 +77,27 @@ const getModeBadge = (mode: string) => {
 }
 
 const getRegStatusBadge = (status: string) => {
-  switch (status) {
+  const normalized = String(status || "").toUpperCase()
+  switch (normalized) {
     case "ATTENDED":
+      return <Badge className="bg-accent/20 text-accent">Đã tham dự</Badge>
+    case "CHECKED_IN":
       return <Badge className="bg-accent/20 text-accent">Đã tham dự</Badge>
     case "REGISTERED":
       return <Badge variant="secondary">Đã đăng ký</Badge>
     case "CANCELLED":
       return <Badge variant="destructive">Đã hủy</Badge>
     default:
-      return <Badge variant="secondary">{status}</Badge>
+      if (normalized === "ATTENDED" || normalized === "CHECKED_IN") {
+        return <Badge className="bg-accent/20 text-accent">Đã tham dự</Badge>
+      }
+      if (normalized === "REGISTERED") {
+        return <Badge variant="secondary">Đã đăng ký</Badge>
+      }
+      if (normalized === "CANCELLED") {
+        return <Badge variant="destructive">Đã hủy</Badge>
+      }
+      return <Badge variant="secondary">{status || "Không xác định"}</Badge>
   }
 }
 
@@ -451,12 +463,13 @@ export default function EventDetailPage() {
                   </div>
                 </div>
 
-                {event.location && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.location}</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    {event.location?.trim() ||
+                      (event.mode === "ONLINE" ? "Sự kiện trực tuyến" : "Chưa cập nhật địa điểm")}
+                  </span>
+                </div>
 
                 {event.meeting_url && (
                   <div className="flex items-center gap-2">

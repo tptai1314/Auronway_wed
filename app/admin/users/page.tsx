@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Image from "next/image"
 import { AdminHeader } from "@/components/admin/admin-header"
 import { UserTable } from "@/components/admin/user-table"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -11,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Search, UserPlus, Loader2 } from "lucide-react"
+import { Search, UserPlus, Loader2, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getUsers, createUser, updateUser, toggleUserStatus, type User } from "@/lib/api"
+import { getUsers, createUser, updateUser, toggleUserStatus, deleteUser, uploadImage, type User } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { isTenantAdmin } from "@/lib/admin-access"
 
@@ -44,7 +46,6 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [roleFilter, setRoleFilter] = useState("all")
   const [total, setTotal] = useState(0)
   const [currentUser, setCurrentUser] = useState<LocalUser | null>(null)
   const [authorized, setAuthorized] = useState(false)
@@ -53,18 +54,36 @@ export default function UsersPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [detailUser, setDetailUser] = useState<User | null>(null)
   const [toggleStatusUser, setToggleStatusUser] = useState<User | null>(null)
+  const [deleteTargetUser, setDeleteTargetUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false)
 
   // Form states
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     full_name: "",
-    role: "PUBLIC_USER",
+    student_id: "",
+    date_of_birth: "",
+    major: "",
+    bio: "",
+    phone: "",
+    avatar_url: "",
   })
 
   const { toast } = useToast()
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === "string" && error.trim()) return error
+    if (error && typeof error === "object") {
+      const err = error as { message?: string; response?: { data?: { message?: string } } }
+      if (err.response?.data?.message) return err.response.data.message
+      if (err.message) return err.message
+    }
+    return fallback
+  }
 
   // Load current user info
   useEffect(() => {
@@ -82,24 +101,30 @@ export default function UsersPage() {
       const result = await getUsers({
         q: searchQuery,
         status: statusFilter,
-        role: roleFilter,
+        role: "PUBLIC_USER",
         limit: 50,
       })
       if (result.success && result.data) {
-        setUsers(result.data.items)
-        setTotal(result.data.total)
+        const filteredItems = result.data.items.filter(
+          (u) =>
+            u.roles?.includes("PUBLIC_USER") &&
+            !u.roles?.includes("TENANT_ADMIN") &&
+            !u.roles?.includes("SUPER_ADMIN")
+        )
+        setUsers(filteredItems)
+        setTotal(filteredItems.length)
       }
     } catch (error) {
       console.error("Error fetching users:", error)
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể tải danh sách người dùng",
+        description: getErrorMessage(error, "Không thể tải danh sách người dùng"),
       })
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, statusFilter, roleFilter, toast])
+  }, [searchQuery, statusFilter, toast])
 
   useEffect(() => {
     if (authorized) {
@@ -123,7 +148,12 @@ export default function UsersPage() {
       email: "",
       password: "",
       full_name: "",
-      role: "PUBLIC_USER",
+      student_id: "",
+      date_of_birth: "",
+      major: "",
+      bio: "",
+      phone: "",
+      avatar_url: "",
     })
   }
 
@@ -136,8 +166,14 @@ export default function UsersPage() {
         password: formData.password,
         profile: {
           full_name: formData.full_name,
+          student_id: formData.student_id || undefined,
+          date_of_birth: formData.date_of_birth || undefined,
+          major: formData.major || undefined,
+          bio: formData.bio || undefined,
+          phone: formData.phone || undefined,
+          avatar_url: formData.avatar_url || undefined,
         },
-        roles: [formData.role],
+        roles: ["PUBLIC_USER"],
       })
 
       if (result.success) {
@@ -155,11 +191,11 @@ export default function UsersPage() {
           description: result.error || "Không thể tạo người dùng",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể tạo người dùng",
+        description: getErrorMessage(error, "Không thể tạo người dùng"),
       })
     } finally {
       setIsSubmitting(false)
@@ -176,15 +212,25 @@ export default function UsersPage() {
         email: string
         profile: {
           full_name: string
+          student_id?: string
+          date_of_birth?: string
+          major?: string
+          bio?: string
+          phone?: string
+          avatar_url?: string
         }
-        roles: string[]
         password?: string
       } = {
         email: formData.email,
         profile: {
           full_name: formData.full_name,
+          student_id: formData.student_id || undefined,
+          date_of_birth: formData.date_of_birth || undefined,
+          major: formData.major || undefined,
+          bio: formData.bio || undefined,
+          phone: formData.phone || undefined,
+          avatar_url: formData.avatar_url || undefined,
         },
-        roles: [formData.role],
       }
 
       if (formData.password) {
@@ -209,11 +255,11 @@ export default function UsersPage() {
           description: result.error || "Không thể cập nhật người dùng",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể cập nhật người dùng",
+        description: getErrorMessage(error, "Không thể cập nhật người dùng"),
       })
     } finally {
       setIsSubmitting(false)
@@ -241,15 +287,79 @@ export default function UsersPage() {
           description: result.error || "Không thể thay đổi trạng thái",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể thay đổi trạng thái",
+        description: getErrorMessage(error, "Không thể thay đổi trạng thái"),
       })
     } finally {
       setIsSubmitting(false)
       setToggleStatusUser(null)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!deleteTargetUser) return
+
+    setIsSubmitting(true)
+    try {
+      const result = await deleteUser(deleteTargetUser._id)
+
+      if (result.success) {
+        toast({
+          title: "Thành công",
+          description: "Đã xóa người dùng",
+        })
+        fetchUsers()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể xóa người dùng",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: getErrorMessage(error, "Không thể xóa người dùng"),
+      })
+    } finally {
+      setIsSubmitting(false)
+      setDeleteTargetUser(null)
+    }
+  }
+
+  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsAvatarUploading(true)
+    try {
+      const result = await uploadImage(file)
+      if (result.success && result.data?.url) {
+        setFormData((prev) => ({ ...prev, avatar_url: result.data?.url || "" }))
+        toast({
+          title: "Thành công",
+          description: "Đã upload avatar",
+        })
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể upload avatar",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: getErrorMessage(error, "Không thể upload avatar"),
+      })
+    } finally {
+      setIsAvatarUploading(false)
+      event.target.value = ""
     }
   }
 
@@ -259,7 +369,12 @@ export default function UsersPage() {
       email: user.email,
       password: "",
       full_name: user.profile?.full_name || "",
-      role: user.roles?.[0] || "PUBLIC_USER",
+      student_id: user.profile?.student_id || "",
+      date_of_birth: user.profile?.date_of_birth ? new Date(user.profile.date_of_birth).toISOString().split("T")[0] : "",
+      major: user.profile?.major || "",
+      bio: user.profile?.bio || "",
+      phone: user.profile?.phone || "",
+      avatar_url: user.profile?.avatar_url || "",
     })
     setIsEditDialogOpen(true)
   }
@@ -267,7 +382,7 @@ export default function UsersPage() {
   const stats = {
     total,
     active: users.filter((u) => u.is_active).length,
-    admins: users.filter((u) => u.roles?.includes("SUPER_ADMIN") || u.roles?.includes("TENANT_ADMIN")).length,
+    admins: 0,
     organizers: 0,
   }
 
@@ -312,18 +427,6 @@ export default function UsersPage() {
               />
             </div>
 
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full bg-secondary sm:w-40">
-                <SelectValue placeholder="Vai trò" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả</SelectItem>
-                <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                <SelectItem value="TENANT_ADMIN">Tenant Admin</SelectItem>
-                <SelectItem value="PUBLIC_USER">Người dùng</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full bg-secondary sm:w-40">
                 <SelectValue placeholder="Trạng thái" />
@@ -344,91 +447,153 @@ export default function UsersPage() {
                 Thêm người dùng
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Thêm người dùng mới</DialogTitle>
-              </DialogHeader>
-              <form className="space-y-4" onSubmit={handleCreateUser}>
-                <div className="space-y-2">
-                  <Label htmlFor="create-name">Họ và tên</Label>
-                  <Input
-                    id="create-name"
-                    placeholder="Nhập họ và tên"
-                    className="bg-secondary"
-                    value={formData.full_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, full_name: e.target.value })
-                    }
-                    required
-                    disabled={isSubmitting}
-                  />
+            <DialogContent className="max-h-[92vh] max-w-3xl overflow-hidden p-0">
+              <div className="border-b px-6 py-5">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-bold text-foreground">Tạo tài khoản mới</DialogTitle>
+                </DialogHeader>
+                <p className="mt-1 text-sm text-muted-foreground">Điền thông tin cơ bản cho tài khoản học sinh.</p>
+              </div>
+
+              <form onSubmit={handleCreateUser}>
+                <div className="max-h-[68vh] space-y-6 overflow-y-auto px-6 py-5">
+                  <div className="flex items-start gap-4 rounded-lg border bg-secondary/30 p-4">
+                    <label
+                      htmlFor="create-avatar-file"
+                      className="flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground hover:border-blue-500 hover:text-blue-600"
+                    >
+                      {formData.avatar_url ? (
+                        <Image src={formData.avatar_url} alt="avatar preview" width={96} height={96} unoptimized className="h-full w-full object-cover" />
+                      ) : (
+                        <Camera className="h-7 w-7" />
+                      )}
+                    </label>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold text-foreground">Ảnh đại diện</p>
+                      <p className="text-sm text-muted-foreground">Chọn ảnh từ máy tính để upload. Tối đa 2MB.</p>
+                      {isAvatarUploading && <p className="text-xs text-blue-600">Đang tải ảnh...</p>}
+                    </div>
+                    <Input
+                      id="create-avatar-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarFileChange}
+                      disabled={isSubmitting || isAvatarUploading}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="create-name">Họ và tên</Label>
+                      <Input
+                        id="create-name"
+                        placeholder="Ví dụ: Nguyễn Văn A"
+                        className="bg-secondary"
+                        value={formData.full_name}
+                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="create-student-id">MSSV</Label>
+                      <Input
+                        id="create-student-id"
+                        placeholder="Ví dụ: HE173456"
+                        className="bg-secondary"
+                        value={formData.student_id}
+                        onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="create-email">Email</Label>
+                      <Input
+                        id="create-email"
+                        type="email"
+                        placeholder="student@fpt.edu.vn"
+                        className="bg-secondary"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="create-password">Mật khẩu ban đầu</Label>
+                      <Input
+                        id="create-password"
+                        type="password"
+                        placeholder="Nhập mật khẩu"
+                        className="bg-secondary"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="create-date-of-birth">Ngày sinh</Label>
+                      <Input
+                        id="create-date-of-birth"
+                        type="date"
+                        className="bg-secondary"
+                        value={formData.date_of_birth}
+                        onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Ngành học</Label>
+                      <Select
+                        value={formData.major || "__none__"}
+                        onValueChange={(value) => setFormData({ ...formData, major: value === "__none__" ? "" : value })}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger className="bg-secondary">
+                          <SelectValue placeholder="Chọn ngành học" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Chưa chọn</SelectItem>
+                          <SelectItem value="Công nghệ thông tin">Công nghệ thông tin</SelectItem>
+                          <SelectItem value="Kỹ thuật phần mềm">Kỹ thuật phần mềm</SelectItem>
+                          <SelectItem value="Trí tuệ nhân tạo">Trí tuệ nhân tạo</SelectItem>
+                          <SelectItem value="An toàn thông tin">An toàn thông tin</SelectItem>
+                          <SelectItem value="Thiết kế đồ họa">Thiết kế đồ họa</SelectItem>
+                          <SelectItem value="Khác">Khác</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="create-bio">Giới thiệu ngắn</Label>
+                      <Textarea
+                        id="create-bio"
+                        placeholder="Mô tả ngắn về định hướng học tập của sinh viên..."
+                        className="min-h-24 bg-secondary"
+                        value={formData.bio}
+                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="create-email">Email</Label>
-                  <Input
-                    id="create-email"
-                    type="email"
-                    placeholder="Nhập email"
-                    className="bg-secondary"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="create-password">Mật khẩu</Label>
-                  <Input
-                    id="create-password"
-                    type="password"
-                    placeholder="Nhập mật khẩu"
-                    className="bg-secondary"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vai trò</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, role: value })
-                    }
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger className="bg-secondary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                      <SelectItem value="TENANT_ADMIN">Tenant Admin</SelectItem>
-                      <SelectItem value="PUBLIC_USER">Người dùng</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end gap-2">
+
+                <div className="flex items-center justify-end gap-3 border-t bg-secondary/40 px-6 py-4">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
                       setIsCreateDialogOpen(false)
                       resetForm()
                     }}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isAvatarUploading}
                   >
                     Hủy
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Thêm người dùng
+                  <Button type="submit" disabled={isSubmitting || isAvatarUploading} className="bg-blue-600 hover:bg-blue-700">
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Tạo tài khoản
                   </Button>
                 </div>
               </form>
@@ -444,8 +609,10 @@ export default function UsersPage() {
         ) : users.length > 0 ? (
           <UserTable
             users={users}
+            onView={(user) => setDetailUser(user)}
             onEdit={openEditDialog}
             onToggleStatus={(user) => setToggleStatusUser(user)}
+            onDelete={(user) => setDeleteTargetUser(user)}
           />
         ) : (
           <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border">
@@ -461,92 +628,192 @@ export default function UsersPage() {
         )}
       </div>
 
+      <Dialog open={!!detailUser} onOpenChange={() => setDetailUser(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Chi tiết người dùng</DialogTitle>
+          </DialogHeader>
+          {detailUser && (
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+              <div className="flex items-center gap-4 rounded-lg border bg-secondary/30 p-4">
+                <div className="h-20 w-20 overflow-hidden rounded-full border bg-background">
+                  {detailUser.profile?.avatar_url ? (
+                    <Image src={detailUser.profile.avatar_url} alt={detailUser.profile?.full_name || detailUser.email} width={80} height={80} unoptimized className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted-foreground">
+                      {(detailUser.profile?.full_name || detailUser.email).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">{detailUser.profile?.full_name || "Chưa cập nhật"}</p>
+                  <p className="text-sm text-muted-foreground">{detailUser.email}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <div><span className="font-medium">MSSV:</span> {detailUser.profile?.student_id || "Chưa cập nhật"}</div>
+                <div><span className="font-medium">Ngày sinh:</span> {detailUser.profile?.date_of_birth ? new Date(detailUser.profile.date_of_birth).toLocaleDateString("vi-VN") : "Chưa cập nhật"}</div>
+                <div><span className="font-medium">Ngành:</span> {detailUser.profile?.major || "Chưa cập nhật"}</div>
+                <div><span className="font-medium">SĐT:</span> {detailUser.profile?.phone || "Chưa cập nhật"}</div>
+                <div><span className="font-medium">Vai trò hệ thống:</span> {detailUser.roles?.join(", ") || "PUBLIC_USER"}</div>
+                <div><span className="font-medium">Trạng thái:</span> {detailUser.is_active ? "Hoạt động" : "Đã khóa"}</div>
+                <div className="sm:col-span-2"><span className="font-medium">Giới thiệu:</span> {detailUser.profile?.bio || "Chưa cập nhật"}</div>
+                <div className="sm:col-span-2"><span className="font-medium">XP/Level:</span> {detailUser.stats?.total_xp || 0} XP / Lv.{detailUser.stats?.level || 1}</div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Chỉnh sửa người dùng</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleEditUser}>
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Họ và tên</Label>
-              <Input
-                id="edit-name"
-                placeholder="Nhập họ và tên"
-                className="bg-secondary"
-                value={formData.full_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, full_name: e.target.value })
-                }
-                required
-                disabled={isSubmitting}
-              />
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-hidden p-0">
+          <div className="border-b px-6 py-5">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-foreground">Chỉnh sửa người dùng</DialogTitle>
+            </DialogHeader>
+            <p className="mt-1 text-sm text-muted-foreground">Cập nhật thông tin tài khoản học sinh.</p>
+          </div>
+
+          <form onSubmit={handleEditUser}>
+            <div className="max-h-[68vh] space-y-6 overflow-y-auto px-6 py-5">
+              <div className="flex items-start gap-4 rounded-lg border bg-secondary/30 p-4">
+                <label
+                  htmlFor="edit-avatar-file"
+                  className="flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground hover:border-blue-500 hover:text-blue-600"
+                >
+                  {formData.avatar_url ? (
+                    <Image src={formData.avatar_url} alt="avatar preview" width={96} height={96} unoptimized className="h-full w-full object-cover" />
+                  ) : (
+                    <Camera className="h-7 w-7" />
+                  )}
+                </label>
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-foreground">Ảnh đại diện</p>
+                  <p className="text-sm text-muted-foreground">Chọn ảnh mới từ máy tính để thay thế.</p>
+                  {isAvatarUploading && <p className="text-xs text-blue-600">Đang tải ảnh...</p>}
+                </div>
+                <Input
+                  id="edit-avatar-file"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                  disabled={isSubmitting || isAvatarUploading}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Họ và tên</Label>
+                  <Input
+                    id="edit-name"
+                    placeholder="Nhập họ và tên"
+                    className="bg-secondary"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-student-id">MSSV</Label>
+                  <Input
+                    id="edit-student-id"
+                    placeholder="Nhập MSSV"
+                    className="bg-secondary"
+                    value={formData.student_id}
+                    onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    placeholder="Nhập email"
+                    className="bg-secondary"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-password">Mật khẩu mới (nếu đổi)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    placeholder="Để trống nếu không đổi"
+                    className="bg-secondary"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-date-of-birth">Ngày sinh</Label>
+                  <Input
+                    id="edit-date-of-birth"
+                    type="date"
+                    className="bg-secondary"
+                    value={formData.date_of_birth}
+                    onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Ngành học</Label>
+                  <Select
+                    value={formData.major || "__none__"}
+                    onValueChange={(value) => setFormData({ ...formData, major: value === "__none__" ? "" : value })}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger className="bg-secondary">
+                      <SelectValue placeholder="Chọn ngành học" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Chưa chọn</SelectItem>
+                      <SelectItem value="Công nghệ thông tin">Công nghệ thông tin</SelectItem>
+                      <SelectItem value="Kỹ thuật phần mềm">Kỹ thuật phần mềm</SelectItem>
+                      <SelectItem value="Trí tuệ nhân tạo">Trí tuệ nhân tạo</SelectItem>
+                      <SelectItem value="An toàn thông tin">An toàn thông tin</SelectItem>
+                      <SelectItem value="Thiết kế đồ họa">Thiết kế đồ họa</SelectItem>
+                      <SelectItem value="Khác">Khác</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-bio">Giới thiệu ngắn</Label>
+                  <Textarea
+                    id="edit-bio"
+                    placeholder="Mô tả ngắn về định hướng học tập của sinh viên..."
+                    className="min-h-24 bg-secondary"
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                placeholder="Nhập email"
-                className="bg-secondary"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                required
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-password">Mật khẩu mới (để trống nếu không đổi)</Label>
-              <Input
-                id="edit-password"
-                type="password"
-                placeholder="Nhập mật khẩu mới"
-                className="bg-secondary"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Vai trò</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, role: value })
-                }
-                disabled={isSubmitting}
-              >
-                <SelectTrigger className="bg-secondary">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                  <SelectItem value="TENANT_ADMIN">Tenant Admin</SelectItem>
-                  <SelectItem value="PUBLIC_USER">Người dùng</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
+
+            <div className="flex items-center justify-end gap-3 border-t bg-secondary/40 px-6 py-4">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={() => {
                   setIsEditDialogOpen(false)
                   setEditingUser(null)
                   resetForm()
                 }}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isAvatarUploading}
               >
                 Hủy
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+              <Button type="submit" disabled={isSubmitting || isAvatarUploading} className="bg-blue-600 hover:bg-blue-700">
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Cập nhật
               </Button>
             </div>
@@ -583,6 +850,31 @@ export default function UsersPage() {
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {toggleStatusUser?.is_active ? "Khóa" : "Mở khóa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteTargetUser}
+        onOpenChange={() => setDeleteTargetUser(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa người dùng?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tài khoản {deleteTargetUser?.email} sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isSubmitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Xóa
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

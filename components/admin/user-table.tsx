@@ -19,12 +19,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Pencil, Ban, CheckCircle } from "lucide-react"
+import { MoreHorizontal, Pencil, Ban, CheckCircle, Trash2, Eye } from "lucide-react"
 
 interface UserTableProps {
   users: User[]
+  onView?: (user: User) => void
   onEdit?: (user: User) => void
   onToggleStatus?: (user: User) => void
+  onDelete?: (user: User) => void
 }
 
 const getStatusBadge = (isActive: boolean) => {
@@ -60,7 +62,7 @@ const getRoleBadge = (roles: string[]) => {
   )
 }
 
-export function UserTable({ users, onEdit, onToggleStatus }: UserTableProps) {
+export function UserTable({ users, onView, onEdit, onToggleStatus, onDelete }: UserTableProps) {
   return (
     <div className="rounded-lg border border-border">
       <Table>
@@ -115,6 +117,11 @@ export function UserTable({ users, onEdit, onToggleStatus }: UserTableProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onView?.(user)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Xem chi tiết
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => onEdit?.(user)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Chỉnh sửa
@@ -134,6 +141,14 @@ export function UserTable({ users, onEdit, onToggleStatus }: UserTableProps) {
                         Mở khóa
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onDelete?.(user)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Xóa người dùng
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>

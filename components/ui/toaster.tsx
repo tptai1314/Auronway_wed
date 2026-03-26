@@ -16,12 +16,22 @@ export function Toaster() {
   return (
     <ToastProvider>
       {toasts.map(function ({ id, title, description, action, ...props }) {
+        const hasTitle = Boolean(title)
+        const hasDescription = Boolean(description)
+        const showFallbackError = props.variant === 'destructive' && !hasTitle && !hasDescription
+
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
+              {hasTitle && <ToastTitle>{title}</ToastTitle>}
+              {hasDescription && (
                 <ToastDescription>{description}</ToastDescription>
+              )}
+              {showFallbackError && (
+                <>
+                  <ToastTitle>Loi</ToastTitle>
+                  <ToastDescription>Da xay ra loi. Vui long thu lai.</ToastDescription>
+                </>
               )}
             </div>
             {action}

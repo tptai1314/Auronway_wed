@@ -13,7 +13,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  CheckCircle,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -33,12 +32,6 @@ const navigation = [
     href: "/admin/events",
     icon: Calendar,
     roles: ["TENANT_ADMIN", "TENANT_CLUB"] as AdminRole[],
-  },
-  {
-    name: "Duyệt sự kiện",
-    href: "/admin/events/approve",
-    icon: CheckCircle,
-    roles: ["TENANT_ADMIN"] as AdminRole[],
   },
   {
     name: "Người tham gia",

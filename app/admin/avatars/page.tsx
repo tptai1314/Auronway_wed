@@ -28,16 +28,18 @@ import {
   createAdminAvatar,
   deleteAdminAvatar,
   getAdminAvatars,
+  uploadImage,
   updateAdminAvatar,
   type AdminAvatar,
 } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Plus, Search, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Plus, Search, Pencil, Trash2, Camera } from "lucide-react"
 
 export default function AvatarsPage() {
   const [avatars, setAvatars] = useState<AdminAvatar[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [isImageUploading, setIsImageUploading] = useState(false)
   const [total, setTotal] = useState(0)
   const [query, setQuery] = useState("")
 
@@ -49,18 +51,28 @@ export default function AvatarsPage() {
   const [form, setForm] = useState({
     name: "",
     image_url: "",
-    order: "0",
+    order: "1",
     is_default: false,
     is_active: true,
   })
 
   const { toast } = useToast()
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === "string" && error.trim()) return error
+    if (error && typeof error === "object") {
+      const err = error as { message?: string; response?: { data?: { message?: string } } }
+      if (err.response?.data?.message) return err.response.data.message
+      if (err.message) return err.message
+    }
+    return fallback
+  }
+
   const resetForm = () => {
     setForm({
       name: "",
       image_url: "",
-      order: "0",
+      order: "1",
       is_default: false,
       is_active: true,
     })
@@ -84,11 +96,11 @@ export default function AvatarsPage() {
           description: res.error || "Không thể tải danh sách avatar",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể tải danh sách avatar",
+        description: getErrorMessage(error, "Không thể tải danh sách avatar"),
       })
     } finally {
       setLoading(false)
@@ -99,6 +111,35 @@ export default function AvatarsPage() {
     fetchAvatars()
   }, [fetchAvatars])
 
+  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsImageUploading(true)
+    try {
+      const result = await uploadImage(file)
+      if (result.success && result.data?.url) {
+        setForm((prev) => ({ ...prev, image_url: result.data?.url || "" }))
+        toast({ title: "Thành công", description: "Đã tải ảnh avatar" })
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể tải ảnh avatar",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: getErrorMessage(error, "Không thể tải ảnh avatar"),
+      })
+    } finally {
+      setIsImageUploading(false)
+      event.target.value = ""
+    }
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -106,7 +147,6 @@ export default function AvatarsPage() {
       const res = await createAdminAvatar({
         name: form.name,
         image_url: form.image_url,
-        order: Number(form.order) || 0,
         is_default: form.is_default,
         is_active: form.is_active,
       })
@@ -123,11 +163,11 @@ export default function AvatarsPage() {
           description: res.error || "Không thể tạo avatar",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể tạo avatar",
+        description: getErrorMessage(error, "Không thể tạo avatar"),
       })
     } finally {
       setSubmitting(false)
@@ -139,7 +179,7 @@ export default function AvatarsPage() {
     setForm({
       name: avatar.name,
       image_url: avatar.image_url,
-      order: String(avatar.order || 0),
+      order: String(avatar.order || 1),
       is_default: Boolean(avatar.is_default),
       is_active: avatar.is_active !== false,
     })
@@ -173,11 +213,11 @@ export default function AvatarsPage() {
           description: res.error || "Không thể cập nhật avatar",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể cập nhật avatar",
+        description: getErrorMessage(error, "Không thể cập nhật avatar"),
       })
     } finally {
       setSubmitting(false)
@@ -200,11 +240,11 @@ export default function AvatarsPage() {
           description: res.error || "Không thể xóa avatar",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Không thể xóa avatar",
+        description: getErrorMessage(error, "Không thể xóa avatar"),
       })
     } finally {
       setDeleteId(null)
@@ -252,25 +292,37 @@ export default function AvatarsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="create-image-url">Image URL</Label>
-                  <Input
-                    id="create-image-url"
-                    value={form.image_url}
-                    onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                    className="bg-secondary"
-                    required
-                  />
+                  <Label>Ảnh avatar</Label>
+                  <div className="flex items-start gap-4 rounded-lg border bg-secondary/30 p-4">
+                    <label
+                      htmlFor="create-avatar-file"
+                      className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground hover:border-blue-500 hover:text-blue-600"
+                    >
+                      {form.image_url ? (
+                        <Image src={form.image_url} alt="avatar preview" width={80} height={80} unoptimized className="h-full w-full object-cover" />
+                      ) : (
+                        <Camera className="h-6 w-6" />
+                      )}
+                    </label>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Chọn ảnh từ máy tính</p>
+                      <p className="text-xs text-muted-foreground">Không cần nhập URL. Nhấn vào ô ảnh để tải lên.</p>
+                      {isImageUploading && <p className="text-xs text-blue-600">Đang tải ảnh...</p>}
+                      {!isImageUploading && form.image_url && <p className="text-xs text-emerald-600">Đã tải ảnh thành công</p>}
+                    </div>
+                    <Input
+                      id="create-avatar-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarFileChange}
+                      disabled={submitting || isImageUploading}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="create-order">Thứ tự</Label>
-                  <Input
-                    id="create-order"
-                    type="number"
-                    value={form.order}
-                    onChange={(e) => setForm({ ...form, order: e.target.value })}
-                    className="bg-secondary"
-                  />
+                <div className="rounded-lg border bg-secondary/20 p-3 text-sm text-muted-foreground">
+                  STT sẽ tự tăng theo thứ tự hiện có (không cần nhập thủ công khi tạo mới).
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
@@ -291,7 +343,7 @@ export default function AvatarsPage() {
                   />
                 </div>
 
-                <Button className="w-full" type="submit" disabled={submitting}>
+                <Button className="w-full" type="submit" disabled={submitting || isImageUploading || !form.image_url}>
                   {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Lưu avatar
                 </Button>
@@ -398,14 +450,32 @@ export default function AvatarsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-image-url">Image URL</Label>
-              <Input
-                id="edit-image-url"
-                value={form.image_url}
-                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                className="bg-secondary"
-                required
-              />
+              <Label>Ảnh avatar</Label>
+              <div className="flex items-start gap-4 rounded-lg border bg-secondary/30 p-4">
+                <label
+                  htmlFor="edit-avatar-file"
+                  className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground hover:border-blue-500 hover:text-blue-600"
+                >
+                  {form.image_url ? (
+                    <Image src={form.image_url} alt="avatar preview" width={80} height={80} unoptimized className="h-full w-full object-cover" />
+                  ) : (
+                    <Camera className="h-6 w-6" />
+                  )}
+                </label>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Đổi ảnh từ máy tính</p>
+                  <p className="text-xs text-muted-foreground">Nhấn vào ô ảnh để upload ảnh mới.</p>
+                  {isImageUploading && <p className="text-xs text-blue-600">Đang tải ảnh...</p>}
+                </div>
+                <Input
+                  id="edit-avatar-file"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                  disabled={submitting || isImageUploading}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -437,7 +507,7 @@ export default function AvatarsPage() {
               />
             </div>
 
-            <Button className="w-full" type="submit" disabled={submitting}>
+            <Button className="w-full" type="submit" disabled={submitting || isImageUploading || !form.image_url}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Lưu thay đổi
             </Button>

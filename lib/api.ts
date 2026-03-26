@@ -157,6 +157,7 @@ export interface UserData {
     full_name?: string;
     avatar_url?: string;
     student_id?: string;
+    date_of_birth?: string;
     major?: string;
     bio?: string;
     phone?: string;
@@ -172,6 +173,7 @@ export interface User {
     full_name?: string;
     avatar_url?: string;
     student_id?: string;
+    date_of_birth?: string;
     major?: string;
     bio?: string;
     phone?: string;

@@ -9,6 +9,14 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 import { canManageEvent, isTenantAdmin } from "@/lib/admin-access"
 
+function toStartOfDayISO(dateText: string) {
+  return new Date(`${dateText}T00:00:00`).toISOString()
+}
+
+function toEndOfDayISO(dateText: string) {
+  return new Date(`${dateText}T23:59:59.999`).toISOString()
+}
+
 export default function EditEventPage() {
   const router = useRouter()
   const params = useParams()
@@ -79,10 +87,10 @@ export default function EditEventPage() {
         start_at: data.start_at ? new Date(data.start_at).toISOString() : undefined,
         end_at: data.end_at ? new Date(data.end_at).toISOString() : undefined,
         registration_open_at: data.registration_open_at
-          ? new Date(data.registration_open_at).toISOString()
+          ? toStartOfDayISO(data.registration_open_at)
           : undefined,
         registration_close_at: data.registration_close_at
-          ? new Date(data.registration_close_at).toISOString()
+          ? toEndOfDayISO(data.registration_close_at)
           : undefined,
       }
 

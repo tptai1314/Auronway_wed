@@ -9,6 +9,14 @@ import { useToast } from "@/hooks/use-toast"
 import { DEFAULT_TENANT_ID, DEFAULT_CAMPUS_ID, DEFAULT_ORGANIZER_ID } from "@/lib/config"
 import { getPrimaryTenantClubOrganizerId, isTenantAdmin } from "@/lib/admin-access"
 
+function toStartOfDayISO(dateText: string) {
+  return new Date(`${dateText}T00:00:00`).toISOString()
+}
+
+function toEndOfDayISO(dateText: string) {
+  return new Date(`${dateText}T23:59:59.999`).toISOString()
+}
+
 export default function NewEventPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -45,10 +53,10 @@ export default function NewEventPage() {
         start_at: data.start_at ? new Date(data.start_at as string).toISOString() : "",
         end_at: data.end_at ? new Date(data.end_at as string).toISOString() : "",
         registration_open_at: data.registration_open_at
-          ? new Date(data.registration_open_at as string).toISOString()
+          ? toStartOfDayISO(data.registration_open_at as string)
           : undefined,
         registration_close_at: data.registration_close_at
-          ? new Date(data.registration_close_at as string).toISOString()
+          ? toEndOfDayISO(data.registration_close_at as string)
           : undefined,
       }
 

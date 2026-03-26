@@ -9,10 +9,10 @@ import {
   Users,
   QrCode,
   UserCog,
+  Image,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Building2,
   CheckCircle,
 } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -41,12 +41,6 @@ const navigation = [
     roles: ["TENANT_ADMIN"] as AdminRole[],
   },
   {
-    name: "Câu lạc bộ",
-    href: "/admin/clubs",
-    icon: Building2,
-    roles: ["TENANT_ADMIN"] as AdminRole[],
-  },
-  {
     name: "Người tham gia",
     href: "/admin/participants",
     icon: Users,
@@ -62,6 +56,12 @@ const navigation = [
     name: "Người dùng",
     href: "/admin/users",
     icon: UserCog,
+    roles: ["TENANT_ADMIN"] as AdminRole[],
+  },
+  {
+    name: "Avatar",
+    href: "/admin/avatars",
+    icon: Image,
     roles: ["TENANT_ADMIN"] as AdminRole[],
   },
 ]

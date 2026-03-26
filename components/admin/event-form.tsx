@@ -33,6 +33,30 @@ interface EventFormProps {
   canEditStatus?: boolean
 }
 
+function toLocalDateTimeInput(value?: string) {
+  if (!value) return ""
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ""
+
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mi = String(d.getMinutes()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+function toLocalDateInput(value?: string) {
+  if (!value) return ""
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ""
+
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus = false }: EventFormProps) {
   const [formData, setFormData] = useState({
     title: event?.title || "",
@@ -40,18 +64,10 @@ export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus 
     type: event?.type || ("WORKSHOP" as EventType),
     mode: event?.mode || ("OFFLINE" as EventMode),
     status: event?.status || ("DRAFT" as EventStatus),
-    start_at: event?.start_at
-      ? new Date(event.start_at).toISOString().slice(0, 16)
-      : "",
-    end_at: event?.end_at
-      ? new Date(event.end_at).toISOString().slice(0, 16)
-      : "",
-    registration_open_at: event?.registration_open_at
-      ? new Date(event.registration_open_at).toISOString().slice(0, 16)
-      : "",
-    registration_close_at: event?.registration_close_at
-      ? new Date(event.registration_close_at).toISOString().slice(0, 16)
-      : "",
+    start_at: toLocalDateTimeInput(event?.start_at),
+    end_at: toLocalDateTimeInput(event?.end_at),
+    registration_open_at: toLocalDateInput(event?.registration_open_at),
+    registration_close_at: toLocalDateInput(event?.registration_close_at),
     location: event?.location || "",
     meeting_url: event?.meeting_url || "",
     cover_image_url: event?.cover_image_url || "",
@@ -135,16 +151,18 @@ export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus 
     
     // Validate registration dates if provided
     if (formData.registration_open_at && formData.registration_close_at) {
-      const regOpen = new Date(formData.registration_open_at)
-      const regClose = new Date(formData.registration_close_at)
+      const regOpen = new Date(`${formData.registration_open_at}T00:00:00`)
+      const regClose = new Date(`${formData.registration_close_at}T23:59:59`)
+      const eventStartDateOnly = new Date(startDate)
+      eventStartDateOnly.setHours(0, 0, 0, 0)
       
       if (regOpen >= regClose) {
-        alert("Thời gian mở đăng ký phải trước thời gian đóng đăng ký")
+        alert("Ngày mở đăng ký phải trước ngày đóng đăng ký")
         return
       }
       
-      if (regClose > startDate) {
-        alert("Thời gian đóng đăng ký phải trước khi sự kiện bắt đầu")
+      if (regClose > eventStartDateOnly) {
+        alert("Ngày đóng đăng ký phải trước ngày bắt đầu sự kiện")
         return
       }
     }
@@ -409,7 +427,7 @@ export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus 
                 <Label htmlFor="registration_open_at">Mở đăng ký</Label>
                 <Input
                   id="registration_open_at"
-                  type="datetime-local"
+                  type="date"
                   value={formData.registration_open_at}
                   onChange={(e) =>
                     setFormData({
@@ -425,7 +443,7 @@ export function EventForm({ event, onSubmit, onCancel, isLoading, canEditStatus 
                 <Label htmlFor="registration_close_at">Đóng đăng ký</Label>
                 <Input
                   id="registration_close_at"
-                  type="datetime-local"
+                  type="date"
                   value={formData.registration_close_at}
                   onChange={(e) =>
                     setFormData({

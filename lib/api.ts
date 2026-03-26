@@ -465,6 +465,70 @@ export async function getAllSkills() {
 }
 
 // =====================================
+// AVATAR MANAGEMENT APIs
+// =====================================
+
+export interface AvatarData {
+  name: string;
+  image_url: string;
+  is_default?: boolean;
+  is_active?: boolean;
+  order?: number;
+}
+
+export interface AdminAvatar extends AvatarData {
+  _id: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAvatarsResponse {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  items: AdminAvatar[];
+}
+
+export async function getAdminAvatars(params?: {
+  page?: number;
+  limit?: number;
+  q?: string;
+  status?: string;
+  is_default?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+  if (params?.q) searchParams.set('q', params.q);
+  if (params?.status && params.status !== 'all') searchParams.set('status', params.status);
+  if (params?.is_default && params.is_default !== 'all') searchParams.set('is_default', params.is_default);
+
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  return fetchAPI<AdminAvatarsResponse>(`/admin/avatars${query}`);
+}
+
+export async function createAdminAvatar(data: AvatarData) {
+  return fetchAPI<AdminAvatar>('/admin/avatars', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAdminAvatar(id: string, data: Partial<AvatarData>) {
+  return fetchAPI<AdminAvatar>(`/admin/avatars/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAdminAvatar(id: string) {
+  return fetchAPI(`/admin/avatars/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// =====================================
 // ORGANIZERS/CLUBS APIs
 // =====================================
 
